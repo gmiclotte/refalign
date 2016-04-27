@@ -244,7 +244,7 @@ sg = []
 current_reference = ''
 for t, l in sam_parse(settings.samName):
         if t == 'meta':
-                print('meta: ' + l)
+                print('meta: ' + l[:-1])
         else:
                 entry = Entry(l)
                 if l[2] != current_reference:
