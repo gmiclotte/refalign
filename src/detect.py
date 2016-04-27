@@ -61,7 +61,7 @@ class Entry(object):
         def __len__(self):
                 return self.len
         def end(self):
-                return self.pos + self.len
+                return self.pos + self.len - 1
         def shifted_end(self):
                 return self.end() - settings.k + 1
 
