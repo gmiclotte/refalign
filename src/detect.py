@@ -53,7 +53,7 @@ class Entry(object):
         def __str__(self):
                 s = ''
                 s += 'id: ' + str(self.nodeID) + ' '
-                s += '[' + str(self.pos) + ' - ' + str(self.pos + self.len) + '] '
+                s += '[' + str(self.pos) + ' - ' + str(self.end()) + '] '
                 s += self.cigar
                 return s
         def __repr__(self):
@@ -63,7 +63,7 @@ class Entry(object):
         def end(self):
                 return self.pos + self.len
         def shifted_end(self):
-                return self.pos + self.len - settings.k + 1
+                return self.end() - settings.k + 1
 
 class SAMNode(object):
         def __init__(self, entry_, id_):
