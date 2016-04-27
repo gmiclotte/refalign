@@ -32,24 +32,67 @@ for meta, seq in fasta_parse(settings.graphName, allmeta = True):
                 j += 1
         nodes.append(node)
 
+def fix_cigar(err):
+        cigar = ''
+        count = 0
+        curr = None
+        for c, t in cigar_parse(err):
+                if t == curr:
+                        count += c
+                else:
+                        if count > 0:
+                                cigar += str(count) + curr
+                        curr = t
+                        count = c
+        if count > 0:
+                cigar += str(count) + curr
+        return cigar
+
+def merge_entry_cigars(entries):
+        cigar = ''
+        count = 0
+        curr = None
+        for idx in range(0, len(entries)):
+                if idx == 0:
+                        ignore = 0
+                else:
+                        ignore = settings.k - 1
+                for c, t in cigar_parse(entries[idx].cigar):
+                        if ignore > 0:
+                                m = min(ignore, c)
+                                ignore -= m
+                                c -= m
+                        if t == curr:
+                                count += c
+                        else:
+                                if count > 0:
+                                        cigar += str(count) + curr
+                                curr = t
+                                count = c
+        if count > 0:
+                cigar += str(count) + curr
+        return fix_cigar(cigar)
+
 class Entry(object):
         def __init__(self, entry):
                 if (int(entry[1]) & 0x10):
                         self.nodeID = -int(entry[0])
+                        self.cigar = entry[5]
                 else:
                         self.nodeID = int(entry[0])
+                        self.cigar = entry[5]
                 self.pos = int(entry[3])
                 self.len = 0
-                self.cigar = entry[5]
                 for c in cigar_parse(self.cigar):
-                        if c[1] == 'I':
-                                self.len += 0
-                        elif c[1] == 'D':
+                        if c[1] in ['M', '=', 'X', 'D', 'N']:
+                                self.len += c[0]
+                        elif c[1] in ['I']:
                                 self.len -= c[0]
-                        elif c[1] == 'S' or c[1] == 'H':
+                        elif c[1] in ['S', 'H']:
                                 self.len += 0
                         else:
-                                self.len += c[0]
+                                print('Unknown cigar.')
+                                exit()
         def __str__(self):
                 s = ''
                 s += 'id: ' + str(self.nodeID) + ' '
@@ -89,8 +132,10 @@ class SAMNode(object):
                                         c -= m
                                 if t == 'M':
                                         count += c
+                                elif t == 'H':
+                                        count += 0
                                 else:
-                                        count -= 0 * c
+                                        count -= 5 * c
                 return count
         def get_max_matches(self):
                 self.update_matches()
@@ -148,11 +193,11 @@ class SAMGraph(object):
         def match_entry(self, entry):
                 id_ = len(self.nodes)
                 self.add_node(entry, id_)
-                while self.position < len(self) and self.first().entries[-1].shifted_end() < entry.pos:
+                while self.position < len(self) and self.first().entries[-1].shifted_end() < entry.pos - 1:
                         self.position += 1
                 for idx in range(self.position, len(self)):
                         node = self.get(idx)
-                        if node.entries[-1].shifted_end() == entry.pos and entry.nodeID in get_out_arcs(node.entries[-1].nodeID):
+                        if node.entries[-1].shifted_end() == entry.pos - 1 and entry.nodeID in get_out_arcs(node.entries[-1].nodeID):
                                 node.next.append(id_)
                                 self.nodes[idx] = node
         def update_potentials(self):
@@ -189,10 +234,10 @@ class SAMGraph(object):
                                                         node.deleted = True
                                                         break
         def __str__(self):
-                s = 'Contig results:\n'
+                s = '\nContig results:'
                 for n in self.nodes:
                         if not n.deleted:
-                                s += str(n.id) + ' ' + str(n.get_max_matches()) + ' ' + str(n.entries[0]) + ' ' + str(n.entries[-1]) + ' ' + str(len(n.entries)) + '\n'
+                                s += '\n' + str(n.id) + ' ' + str(n.get_max_matches()) + ' ' + str(n.entries[0]) + ' ' + str(n.entries[-1]) + ' ' + str(len(n.entries))
                 return s
 
 sg = []
@@ -212,5 +257,9 @@ for g in sg:
         g.collapse_linear()
         g.filter()
         print(g)
+        for n in g.nodes:
+                if not n.deleted:
+                        print(merge_entry_cigars(n.entries))
 
 exit()
+
