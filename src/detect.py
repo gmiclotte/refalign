@@ -197,9 +197,10 @@ class SAMGraph(object):
                         self.position += 1
                 for idx in range(self.position, len(self)):
                         node = self.get(idx)
-                        if node.entries[-1].shifted_end() == entry.pos - 1 and entry.nodeID in get_out_arcs(node.entries[-1].nodeID):
-                                node.next.append(id_)
-                                self.nodes[idx] = node
+                        if entry.nodeID in get_out_arcs(node.entries[-1].nodeID):
+                                if node.entries[-1].shifted_end() == entry.pos - 1:
+                                        node.next.append(id_)
+                                        self.nodes[idx] = node
         def update_potentials(self):
                 for node in reversed(self.nodes):
                         next = 0
