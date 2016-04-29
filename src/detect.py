@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-from util import fasta_parse, sam_parse, cigar_parse
+from util import fasta_parse, sam_parse, cigar_parse, md_parse
 from settings import Settings
 from node import Node
 
@@ -10,6 +10,60 @@ settings.samName = 'data/sorted.sam'
 settings.k = 63
 
 nodes = []
+
+def m2eqx(cigar, md):
+        md = md.split(':')[-1]
+        mds = [m for m in md_parse(md)]
+        cigars = [c for c in cigar_parse(cigar)]
+        c_idx = 0
+        m_idx = 0
+        cigar = ''
+        for c_idx in range(len(cigars)):
+                c = cigars[c_idx]
+                if c[1] in ['I', 'N', 'S', 'H', 'P']:
+                        #masked bases or insertions don't occur in the MD tag #TODO
+                        cigar += str(c[0]) + c[1]
+                elif c[1] in ['D', 'X', '=']:
+                        #deletion or cigar already in X/= format
+                        if c[1] == 'X':
+                                m_idx += 2 * c[0] - 1
+                        else:
+                                m_idx += 1
+                        cigar += str(c[0]) + c[1]
+                elif c[1] == 'M':
+                        m_count = 0
+                        while m_count < c[0]:
+                                m = mds[m_idx]
+                                if m[0] in [str(i) for i in range(10)]:
+                                        #match
+                                        
+                                        
+                                        if c[0] < m_count + int(m):
+                                                cigar += str(c[0] - m_count) + '='
+                                                m = str(int(m) - c[0] + m_count)
+                                                mds[m_idx] = m
+                                                m_count += c[0] - m_count
+                                        elif c[0] == m_count + int(m):
+                                                cigar += str(c[0] - m_count) + '='
+                                                m_count += c[0] - m_count
+                                                m_idx += 1
+                                        else:
+                                                cigar += m + '='
+                                                m_count += int(m)
+                                                m_idx += 1
+                                else:
+                                        #mismatch
+                                        size = 1
+                                        while m_idx + 2 < len(mds) and mds[m_idx + 1] == '0':
+                                                size += 1
+                                                m_idx += 2
+                                        cigar += str(size) + 'X'
+                                        m_count += size
+                                        m_idx += 1
+                else:
+                        print('Unknown cigar entry!', c)
+                        exit()
+        return cigar
 
 def get_out_arcs(nodeID):
         if nodeID < 0:
@@ -77,12 +131,11 @@ class Entry(object):
         def __init__(self, entry):
                 if (int(entry[1]) & 0x10):
                         self.nodeID = -int(entry[0])
-                        self.cigar = entry[5]
                 else:
                         self.nodeID = int(entry[0])
-                        self.cigar = entry[5]
                 self.pos = int(entry[3])
                 self.len = 0
+                self.cigar = m2eqx(entry[5], entry[12])
                 for c in cigar_parse(self.cigar):
                         if c[1] in ['M', '=', 'X', 'D', 'N']:
                                 self.len += c[0]
@@ -130,9 +183,9 @@ class SAMNode(object):
                                         m = min(ignore, c)
                                         ignore -= m
                                         c -= m
-                                if t == 'M':
+                                if t == '=' or t == 'M':
                                         count += c
-                                elif t == 'H':
+                                elif t in ['H']:
                                         count += 0
                                 else:
                                         count -= 5 * c
@@ -234,11 +287,14 @@ class SAMGraph(object):
                                                 elif container == other.id:
                                                         node.deleted = True
                                                         break
+        def cutoff(self, c):
+                for node in self.nodes:
+                        node.deleted = node.deleted or (node.entries[-1].end() - node.entries[0].pos + 1) < c
         def __str__(self):
                 s = '\nContig results:'
                 for n in self.nodes:
                         if not n.deleted:
-                                s += '\n' + str(n.id) + ' ' + str(n.get_max_matches()) + ' ' + str(n.entries[0]) + ' ' + str(n.entries[-1]) + ' ' + str(len(n.entries))
+                                s += '\n' + str(n.id) + ' ' + str(n.get_max_matches()) + ' ' + str(len(n.entries)) + '\n' + str(n.entries[0]) + '\n' + str(n.entries[-1]) + '\n' + merge_entry_cigars(n.entries)
                 return s
 
 sg = []
@@ -253,14 +309,17 @@ for t, l in sam_parse(settings.samName):
                         sg.append(SAMGraph())
                 sg[-1].match_entry(entry)
 
+print('Finished reading data.')
+
 for g in sg:
         g.collapse_greedy()
         g.collapse_linear()
+        print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
         g.filter()
+        print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
+        g.cutoff(5000)
+        print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
         print(g)
-        for n in g.nodes:
-                if not n.deleted:
-                        print(merge_entry_cigars(n.entries))
 
 exit()
 

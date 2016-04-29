@@ -21,8 +21,12 @@
 import re
 
 def cigar_parse(cigar):
-        for c in re.findall(r'(\d+)([A-Z]{1})', cigar):
+        for c in re.findall(r'(\d+)([A-Z=]{1})', cigar):
                 yield [int(c[0]), c[1]]
+
+def md_parse(md):
+        for c in re.findall(r'\d+|\^*[A-Z]+', md):
+                yield c
 
 def fasta_parse(ifname, allmeta = False):
         infile = open(ifname)
@@ -47,7 +51,7 @@ def sam_parse(ifname):
                 if line.startswith('@'):
                         yield 'meta', line
                 else:
-                        yield '', line.rstrip().split()
+                        yield 'entry', line.rstrip().split()
 
 base_complements = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
 
