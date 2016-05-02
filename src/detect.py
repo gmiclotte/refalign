@@ -277,17 +277,28 @@ class SAMGraph(object):
                 for node in self.nodes:
                         node.deleted = node.deleted or (node.entries[-1].end() - node.entries[0].pos + 1) < c
         def __str__(self):
-                s = '\nContig results:'
+                s = ''
                 for n in self.nodes:
                         if not n.deleted:
-                                s += '\n' + str(n.id) + ' ' + str(n.get_max_matches()) + ' ' + str(len(n.entries)) + '\n' + str(n.entries[0]) + '\n' + str(n.entries[-1]) + '\n' + merge_entry_cigars(self.settings, n.entries)
+                                qname = 'path'
+                                flag = '0'
+                                rname = 'contig_name'
+                                pos = str(n.entries[0].pos)
+                                mapq = '0'
+                                cigar = merge_entry_cigars(self.settings, n.entries)
+                                rnext = '*'
+                                pnext = '*'
+                                tlen = '0'
+                                seq = '*'
+                                qual = ''
+                                s += qname + ' ' + flag + ' ' + rname + ' ' + pos + ' ' + mapq + ' ' + cigar + ' ' + rnext + ' ' + pnext + ' ' + tlen + ' ' + seq + ' ' + qual + '\n'
                 return s
 
 
 def align_to_graph(settings):
 
         dbg = DBGraph()
-
+        ofile = open('output.sam', 'w')
         for meta, seq in fasta_parse(settings.graphName, allmeta = True):
                 node = Node(int(meta[0]), seq)
                 node.size = int(meta[1])
@@ -307,6 +318,7 @@ def align_to_graph(settings):
         current_reference = ''
         for t, l in sam_parse(settings.samName):
                 if t == 'meta':
+                        ofile.write(l)
                         print('meta: ' + l[:-1])
                 else:
                         entry = Entry(settings, l)
@@ -325,7 +337,9 @@ def align_to_graph(settings):
                 print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
                 g.cutoff(5000)
                 print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
+                print('\nContig results:')
                 print(g)
+                ofile.write(str(g))
 
 def main(argv = None):
         if argv is None:
