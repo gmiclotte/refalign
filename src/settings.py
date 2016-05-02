@@ -22,6 +22,7 @@ class Settings:
         def __init__(self):
                 self.k = 31
                 self.long = False
+                self.min_len = 0
 
         def __str__(self):
                 s = ''

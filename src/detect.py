@@ -341,7 +341,7 @@ def align_to_graph(settings):
                 print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
                 g.filter()
                 print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
-                g.cutoff(5000)
+                g.cutoff(settings.min_len)
                 print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
                 print('\nContig results:')
                 print(g)
@@ -351,7 +351,7 @@ def main(argv = None):
         if argv is None:
                 argv = sys.argv
         try:
-                opts, args = getopt.getopt(argv[1:], 'hg:s:k:', ['help', 'graph=', 'sam=', 'kmersize=', 'long'])
+                opts, args = getopt.getopt(argv[1:], 'hg:s:k:', ['help', 'graph=', 'sam=', 'kmersize=', 'long', 'min='])
         except getopt.error:
                 print >>sys.stderr, 'For help use --help'
                 return 2
@@ -367,6 +367,8 @@ def main(argv = None):
                         settings.k = int(val)
                 elif opt == '--long':
                         settings.long = True
+                elif opt == '--min':
+                        settings.min_len = val
         align_to_graph(settings)
 
 if __name__ == "__main__":
