@@ -1,15 +1,9 @@
 #!/usr/bin/python3
-
+import sys
+import getopt
 from util import fasta_parse, sam_parse, cigar_parse, md_parse
 from settings import Settings
 from node import Node
-
-settings = Settings()
-settings.graphName = 'data/DBGraph.fasta'
-settings.samName = 'data/sorted.sam'
-settings.k = 63
-
-nodes = []
 
 def m2eqx(cigar, md):
         md = md.split(':')[-1]
@@ -65,26 +59,14 @@ def m2eqx(cigar, md):
                         exit()
         return cigar
 
-def get_out_arcs(nodeID):
-        if nodeID < 0:
-                return [-a for a in nodes[-nodeID - 1].inArcs]
-        else:
-                return nodes[nodeID - 1].outArcs
-
-for meta, seq in fasta_parse(settings.graphName, allmeta = True):
-        node = Node(int(meta[0]), seq)
-        node.size = int(meta[1])
-        node.inCount = int(meta[2])
-        j = 3
-        while j < node.inCount + 3:
-                node.inArcs.append(int(meta[j]))
-                j += 1
-        node.outCount = int(meta[j])
-        j += 1
-        while j < node.outCount + node.inCount + 4:
-                node.outArcs.append(int(meta[j]))
-                j += 1
-        nodes.append(node)
+class DBGraph:
+        def __init__(self):
+                self.nodes = []
+        def get_out_arcs(self, nodeID):
+                if nodeID < 0:
+                        return [-a for a in self.nodes[-nodeID - 1].inArcs]
+                else:
+                        return self.nodes[nodeID - 1].outArcs
 
 def fix_cigar(err):
         cigar = ''
@@ -102,7 +84,7 @@ def fix_cigar(err):
                 cigar += str(count) + curr
         return cigar
 
-def merge_entry_cigars(entries):
+def merge_entry_cigars(settings, entries):
         cigar = ''
         count = 0
         curr = None
@@ -128,7 +110,8 @@ def merge_entry_cigars(entries):
         return fix_cigar(cigar)
 
 class Entry(object):
-        def __init__(self, entry):
+        def __init__(self, settings_, entry):
+                self.settings = settings_
                 if (int(entry[1]) & 0x10):
                         self.nodeID = -int(entry[0])
                 else:
@@ -159,10 +142,11 @@ class Entry(object):
         def end(self):
                 return self.pos + self.len - 1
         def shifted_end(self):
-                return self.end() - settings.k + 1
+                return self.end() - self.settings.k + 1
 
 class SAMNode(object):
-        def __init__(self, entry_, id_):
+        def __init__(self, settings_, entry_, id_):
+                self.settings = settings_
                 self.entries = [entry_]
                 self.id = id_
                 self.next = []
@@ -177,7 +161,7 @@ class SAMNode(object):
                         if idx == 0:
                                 ignore = 0
                         else:
-                                ignore = settings.k - 1
+                                ignore = self.settings.k - 1
                         for c, t in cigar_parse(entry.cigar):
                                 if ignore > 0:
                                         m = min(ignore, c)
@@ -188,7 +172,7 @@ class SAMNode(object):
                                 elif t in ['H']:
                                         count += 0
                                 else:
-                                        count -= 5 * c
+                                        count -= 100 * c
                 return count
         def get_max_matches(self):
                 self.update_matches()
@@ -228,7 +212,9 @@ class SAMNode(object):
                                 return None
 
 class SAMGraph(object):
-        def __init__(self):
+        def __init__(self, settings_, dbg_):
+                self.settings = settings_
+                self.dbg = dbg_
                 self.nodes = []
                 self.position = 0
         def __len__(self):
@@ -237,7 +223,7 @@ class SAMGraph(object):
                 if not id_ == len(self.nodes):
                         print('An error occured while building the SAM graph.')
                         exit()
-                self.nodes.append(SAMNode(entry, id_))
+                self.nodes.append(SAMNode(self.settings, entry, id_))
         def first(self):
                 return self.get(self.position)
         def get(self, idx):
@@ -250,7 +236,7 @@ class SAMGraph(object):
                         self.position += 1
                 for idx in range(self.position, len(self)):
                         node = self.get(idx)
-                        if entry.nodeID in get_out_arcs(node.entries[-1].nodeID):
+                        if entry.nodeID in self.dbg.get_out_arcs(node.entries[-1].nodeID):
                                 if node.entries[-1].shifted_end() == entry.pos - 1:
                                         node.next.append(id_)
                                         self.nodes[idx] = node
@@ -294,32 +280,72 @@ class SAMGraph(object):
                 s = '\nContig results:'
                 for n in self.nodes:
                         if not n.deleted:
-                                s += '\n' + str(n.id) + ' ' + str(n.get_max_matches()) + ' ' + str(len(n.entries)) + '\n' + str(n.entries[0]) + '\n' + str(n.entries[-1]) + '\n' + merge_entry_cigars(n.entries)
+                                s += '\n' + str(n.id) + ' ' + str(n.get_max_matches()) + ' ' + str(len(n.entries)) + '\n' + str(n.entries[0]) + '\n' + str(n.entries[-1]) + '\n' + merge_entry_cigars(self.settings, n.entries)
                 return s
 
-sg = []
-current_reference = ''
-for t, l in sam_parse(settings.samName):
-        if t == 'meta':
-                print('meta: ' + l[:-1])
-        else:
-                entry = Entry(l)
-                if l[2] != current_reference:
-                        current_reference = l[2]
-                        sg.append(SAMGraph())
-                sg[-1].match_entry(entry)
 
-print('Finished reading data.')
+def align_to_graph(settings):
 
-for g in sg:
-        g.collapse_greedy()
-        g.collapse_linear()
-        print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
-        g.filter()
-        print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
-        g.cutoff(5000)
-        print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
-        print(g)
+        dbg = DBGraph()
 
-exit()
+        for meta, seq in fasta_parse(settings.graphName, allmeta = True):
+                node = Node(int(meta[0]), seq)
+                node.size = int(meta[1])
+                node.inCount = int(meta[2])
+                j = 3
+                while j < node.inCount + 3:
+                        node.inArcs.append(int(meta[j]))
+                        j += 1
+                node.outCount = int(meta[j])
+                j += 1
+                while j < node.outCount + node.inCount + 4:
+                        node.outArcs.append(int(meta[j]))
+                        j += 1
+                dbg.nodes.append(node)
 
+        sg = []
+        current_reference = ''
+        for t, l in sam_parse(settings.samName):
+                if t == 'meta':
+                        print('meta: ' + l[:-1])
+                else:
+                        entry = Entry(settings, l)
+                        if l[2] != current_reference:
+                                current_reference = l[2]
+                                sg.append(SAMGraph(settings, dbg))
+                        sg[-1].match_entry(entry)
+
+        print('Finished reading data.')
+
+        for g in sg:
+                g.collapse_greedy()
+                g.collapse_linear()
+                print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
+                g.filter()
+                print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
+                g.cutoff(5000)
+                print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
+                print(g)
+
+def main(argv = None):
+        if argv is None:
+                argv = sys.argv
+        try:
+                opts, args = getopt.getopt(argv[1:], 'hg:s:k:', ['help', 'graph=', 'sam=', 'kmersize='])
+        except getopt.error:
+                print >>sys.stderr, 'For help use --help'
+                return 2
+        settings = Settings()
+        for opt, val in opts:
+                if opt == '-h' or opt == '--help':
+                        print('Help message should come here.') #TODO
+                elif opt == '-g' or opt == '--graph':
+                        settings.graphName = val
+                elif opt == '-s' or opt == '--sam':
+                        settings.samName = val
+                elif opt == '-k' or opt == '--kmersize':
+                        settings.k = int(val)
+        align_to_graph(settings)
+
+if __name__ == "__main__":
+        sys.exit(main())
