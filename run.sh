@@ -2,7 +2,7 @@
 
 brownie=~/Documents/Tools/brownie/Release/src/brownie
 bwa=~/Documents/Tools/bwa/bwa
-refalign=~/Documents/Projects/sv_detection/src/detect.py
+refalign=~/Documents/Projects/sv_detection/src/align.py
 samtools=samtools
 
 
