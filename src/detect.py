@@ -326,9 +326,9 @@ def align_to_graph(settings):
         for t, l in sam_parse(settings.samName):
                 if t == 'meta':
                         ofile.write(l)
-                        print('meta: ' + l[:-1])
+                        #print('meta: ' + l[:-1])
                 else:
-                        if l[2] != current_reference:
+                        if l[2] != current_reference and l[2] != '*':
                                 current_reference = l[2]
                                 sg.append(SAMGraph(settings, dbg, l[2]))
                         sg[-1].match_entry(l)
@@ -336,6 +336,7 @@ def align_to_graph(settings):
         print('Finished reading data.')
 
         for g in sg:
+                print('Processing:', g.contig)
                 g.collapse_greedy()
                 g.collapse_linear()
                 #print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
@@ -343,8 +344,8 @@ def align_to_graph(settings):
                 #print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
                 g.cutoff(settings.min_len)
                 #print('Deleted', len([n for n in g.nodes if n.deleted]), len(g.nodes))
-                print('\nContig results:')
-                print(g)
+                #print('\nContig results:')
+                #print(g)
                 ofile.write(str(g))
 
 def main(argv = None):
