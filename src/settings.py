@@ -21,6 +21,7 @@
 class Settings:
         def __init__(self):
                 self.k = 31
+                self.long = False
 
         def __str__(self):
                 s = ''

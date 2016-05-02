@@ -212,11 +212,12 @@ class SAMNode(object):
                                 return None
 
 class SAMGraph(object):
-        def __init__(self, settings_, dbg_):
+        def __init__(self, settings_, dbg_, contig_):
                 self.settings = settings_
                 self.dbg = dbg_
                 self.nodes = []
                 self.position = 0
+                self.contig = contig_
         def __len__(self):
                 return len(self.nodes)
         def add_node(self, entry, id_):
@@ -230,6 +231,7 @@ class SAMGraph(object):
                 if idx < len(self):
                         return self.nodes[idx]
         def match_entry(self, entry):
+                entry = Entry(self.settings, entry)
                 id_ = len(self.nodes)
                 self.add_node(entry, id_)
                 while self.position < len(self) and self.first().entries[-1].shifted_end() < entry.pos - 1:
@@ -280,9 +282,14 @@ class SAMGraph(object):
                 s = ''
                 for n in self.nodes:
                         if not n.deleted:
-                                qname = 'path'
+                                if self.settings.long:
+                                        qname = ''
+                                        for e in n.entries:
+                                                qname += 'N' + str(e.nodeID)
+                                else:
+                                        qname = 'path'
                                 flag = '0'
-                                rname = 'contig_name'
+                                rname = self.contig
                                 pos = str(n.entries[0].pos)
                                 mapq = '0'
                                 cigar = merge_entry_cigars(self.settings, n.entries)
@@ -321,11 +328,10 @@ def align_to_graph(settings):
                         ofile.write(l)
                         print('meta: ' + l[:-1])
                 else:
-                        entry = Entry(settings, l)
                         if l[2] != current_reference:
                                 current_reference = l[2]
-                                sg.append(SAMGraph(settings, dbg))
-                        sg[-1].match_entry(entry)
+                                sg.append(SAMGraph(settings, dbg, l[2]))
+                        sg[-1].match_entry(l)
 
         print('Finished reading data.')
 
@@ -345,7 +351,7 @@ def main(argv = None):
         if argv is None:
                 argv = sys.argv
         try:
-                opts, args = getopt.getopt(argv[1:], 'hg:s:k:', ['help', 'graph=', 'sam=', 'kmersize='])
+                opts, args = getopt.getopt(argv[1:], 'hg:s:k:', ['help', 'graph=', 'sam=', 'kmersize=', 'long'])
         except getopt.error:
                 print >>sys.stderr, 'For help use --help'
                 return 2
@@ -359,6 +365,8 @@ def main(argv = None):
                         settings.samName = val
                 elif opt == '-k' or opt == '--kmersize':
                         settings.k = int(val)
+                elif opt == '--long':
+                        settings.long = True
         align_to_graph(settings)
 
 if __name__ == "__main__":
