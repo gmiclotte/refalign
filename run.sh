@@ -1,8 +1,8 @@
 #!/bin/bash
 
-brownie=~/Documents/Tools/brownie/Release/src/brownie
-bwa=~/Documents/Tools/bwa/bwa
-refalign=~/Documents/Projects/sv_detection/src/align.py
+brownie=
+bwa=
+refalign=
 samtools=samtools
 
 
