@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import sys
 import getopt
-from util import fasta_parse, sam_parse, cigar_parse, md_parse
+from util import fasta_parse, sam_parse, cigar_parse, md_parse, reverse_complement
 from settings import Settings
 from node import Node
 
@@ -67,6 +67,11 @@ class DBGraph:
                         return [-a for a in self.nodes[-nodeID - 1].inArcs]
                 else:
                         return self.nodes[nodeID - 1].outArcs
+        def get_node_seq(self, nodeID):
+                if nodeID < 0:
+                        return reverse_complement(self.nodes[-nodeID - 1].seq)
+                else:
+                        return self.nodes[nodeID - 1].seq
 
 def fix_cigar(err):
         cigar = ''
