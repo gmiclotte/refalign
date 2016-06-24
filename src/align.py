@@ -73,6 +73,22 @@ class DBGraph:
                         return reverse_complement(self.nodes[-nodeID - 1].seq)
                 else:
                         return self.nodes[nodeID - 1].seq
+        
+        def get_path_seq(self, path, H1=0, H2=0):
+                seq = ""
+                first = True
+                for nodeID in path:
+                        if first:
+                                seq = self.get_node_seq(nodeID)
+                                first = False
+                        else:
+                                seq += self.get_node_seq(nodeID)[self.k:]
+                seq = seq.strip('\n')
+                if H1 > 0:
+                        seq = seq[H1:]
+                if H2 > 0:
+                        seq = seq[:-H2]
+                return seq
 
 def fix_cigar(err):
         cigar = ''
