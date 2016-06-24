@@ -60,7 +60,8 @@ def m2eqx(cigar, md):
         return cigar
 
 class DBGraph:
-        def __init__(self):
+        def __init__(self, k_):
+                self.k = k_
                 self.nodes = []
         def get_out_arcs(self, nodeID):
                 if nodeID < 0:
@@ -309,7 +310,7 @@ class SAMGraph(object):
 
 def align_to_graph(settings):
 
-        dbg = DBGraph()
+        dbg = DBGraph(settings.k)
         ofile = open('output.sam', 'w')
         for meta, seq in fasta_parse(settings.graphName, allmeta = True):
                 node = Node(int(meta[0]), seq)
