@@ -318,7 +318,10 @@ class SAMGraph(object):
                                 rnext = '*'
                                 pnext = '*'
                                 tlen = '0'
-                                seq = '*'
+                                parsed_cigar = list(cigar_parse(cigar))
+                                H1 = parsed_cigar[0][0] if parsed_cigar[0][1] == 'H' else 0
+                                H2 = parsed_cigar[-1][0] if parsed_cigar[-1][1] == 'H' else 0
+                                seq = self.dbg.get_path_seq([e.nodeID for e in n.entries], H1, H2)
                                 qual = ''
                                 s += qname + ' ' + flag + ' ' + rname + ' ' + pos + ' ' + mapq + ' ' + cigar + ' ' + rnext + ' ' + pnext + ' ' + tlen + ' ' + seq + ' ' + qual + '\n'
                 return s
